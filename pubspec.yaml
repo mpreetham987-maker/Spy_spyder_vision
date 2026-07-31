@@ -1,0 +1,50 @@
+name: spy_spider_vision
+description: "Premium controller application for a 4-legged spy spider robot."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # State management
+  provider: ^6.1.2
+
+  # Typography & animation
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+
+  # Connectivity (Bluetooth Classic SPP)
+  flutter_bluetooth_serial: ^0.4.0
+  permission_handler: ^11.3.1
+
+  # Networking / ESP32-CAM MJPEG stream
+  http: ^1.2.1
+
+  # UI utilities
+  smooth_page_indicator: ^1.1.0
+
+  # Persistence
+  shared_preferences: ^2.2.3
+
+  # On-device AI object detection, run on real decoded ESP32-CAM
+  # frames (never a simulated/fake overlay).
+  google_mlkit_object_detection: ^0.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Add asset declarations here as you drop files into assets/images
+  # or assets/icons, e.g.:
+  # assets:
+  #   - assets/images/
+  #   - assets/icons/
