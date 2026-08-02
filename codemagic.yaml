@@ -10,7 +10,7 @@ workflows:
         # (Codemagic > App settings > Environment variables), e.g.:
         # CM_KEYSTORE, CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD
         # This file does not modify your existing signing configuration.
-        PACKAGE_NAME: "" # optional, informational only — not used to alter build
+        PACKAGE_NAME: "com.spidervision.spy_spider_vision" # optional, informational only — not used to alter build
     scripts:
       - name: Restore gradle-wrapper.jar if missing
         script: |
