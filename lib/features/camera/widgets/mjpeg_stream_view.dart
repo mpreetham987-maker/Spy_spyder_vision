@@ -95,7 +95,7 @@ class _MjpegStreamViewState extends State<MjpegStreamView> {
       final start = _indexOfMarker(_byteBuffer, 0xFF, 0xD8);
       if (start == -1) {
         // No frame start yet; keep buffer bounded.
-        if (_byteBuffer.length > 2_000_000) _byteBuffer.clear();
+        if (_byteBuffer.length > 2000000) _byteBuffer.clear();
         return;
       }
       final end = _indexOfMarker(_byteBuffer, 0xFF, 0xD9, start: start + 2);
