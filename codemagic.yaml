@@ -47,7 +47,7 @@ workflows:
       - name: Build Android App Bundle
         script: |
           set -e
-          flutter build apk --debug
+          flutter build appbundle --debug
 
     artifacts:
       - build/app/outputs/**/*.aab
