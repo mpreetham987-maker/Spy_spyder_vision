@@ -20,7 +20,8 @@ dependencies:
 
   # Connectivity (Bluetooth Classic SPP)
   flutter_bluetooth_serial:
-  path: packages/flutter_bluetooth_serial
+    path: packages/flutter_bluetooth_serial
+
   permission_handler: ^11.3.1
 
   # Networking / ESP32-CAM MJPEG stream
