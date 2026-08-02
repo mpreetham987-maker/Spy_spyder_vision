@@ -1,0 +1,63 @@
+workflows:
+  android-release:
+    name: Android Build
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      vars:
+        # If your app.gradle references a keystore via env vars for signing,
+        # define them here or in Codemagic's UI under "Environment variables"
+        # (Codemagic > App settings > Environment variables), e.g.:
+        # CM_KEYSTORE, CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD
+        # This file does not modify your existing signing configuration.
+        PACKAGE_NAME: "" # optional, informational only — not used to alter build
+    scripts:
+      - name: Restore gradle-wrapper.jar if missing
+        script: |
+          set -e
+          WRAPPER_JAR="android/gradle/wrapper/gradle-wrapper.jar"
+          if [ ! -f "$WRAPPER_JAR" ]; then
+            echo "gradle-wrapper.jar is missing — regenerating from a scratch Flutter project"
+            TMP_DIR=$(mktemp -d)
+            flutter create --platforms=android "$TMP_DIR/wrapper_src"
+            mkdir -p "$(dirname "$WRAPPER_JAR")"
+            cp "$TMP_DIR/wrapper_src/android/gradle/wrapper/gradle-wrapper.jar" "$WRAPPER_JAR"
+            rm -rf "$TMP_DIR"
+            echo "gradle-wrapper.jar restored at $WRAPPER_JAR"
+          else
+            echo "gradle-wrapper.jar already present, skipping regeneration"
+          fi
+
+      - name: Make gradlew executable
+        script: |
+          set -e
+          chmod +x android/gradlew
+          echo "android/gradlew is now executable"
+
+      - name: Flutter clean
+        script: |
+          set -e
+          flutter clean
+
+      - name: Flutter pub get
+        script: |
+          set -e
+          flutter pub get
+
+      - name: Build Android App Bundle
+        script: |
+          set -e
+          flutter build appbundle --release
+
+    artifacts:
+      - build/app/outputs/**/*.aab
+      - build/app/outputs/**/mapping.txt
+      - flutter_drive.log
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com # <-- replace with your notification email
+        notify:
+          success: true
+          failure: true
