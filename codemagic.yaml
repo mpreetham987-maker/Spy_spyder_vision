@@ -47,7 +47,7 @@ workflows:
       - name: Build Android App Bundle
         script: |
           set -e
-          flutter build appbundle --release
+          flutter build apk --debug
 
     artifacts:
       - build/app/outputs/**/*.aab
@@ -57,7 +57,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - your-email@example.com # <-- replace with your notification email
+          - mpreetham987@gmail.com # <-- replace with your notification email
         notify:
           success: true
           failure: true
