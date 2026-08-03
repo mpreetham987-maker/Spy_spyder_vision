@@ -11,7 +11,6 @@ import '../../../shared/widgets/emergency_stop_button.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../camera/widgets/mjpeg_stream_view.dart';
 import '../../manual_control/widgets/leg_control_card.dart';
-import '../../manual_control/widgets/quick_action_bar.dart';
 
 /// Combined camera + control screen: the ESP32-CAM live feed fills the
 /// top (large, unobstructed — no overlay text on top of it), a
@@ -116,7 +115,7 @@ class _CameraControlScreenState extends State<CameraControlScreen> {
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 1.2,
-                          color: AppColors.textTertiary,
+                          color: context.palette.textTertiary,
                         ),
                       ),
                       const Spacer(),
@@ -137,20 +136,6 @@ class _CameraControlScreenState extends State<CameraControlScreen> {
                   // diamond side by side, mirroring the approved mockup.
                   _ControllerPad(enabled: controlsEnabled, robot: robot),
 
-                  const SizedBox(height: AppConstants.spaceMd),
-
-                  // Home is the one macro that doesn't live in the
-                  // diamond cluster, so it gets a slim secondary chip.
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: QuickActionChip(
-                      label: 'Home',
-                      icon: Icons.home_rounded,
-                      enabled: controlsEnabled,
-                      onTap: () => robot.homePosition(),
-                    ),
-                  ),
-
                   const SizedBox(height: AppConstants.spaceXl),
 
                   // Servo fine-control, collapsed by default.
@@ -167,7 +152,7 @@ class _CameraControlScreenState extends State<CameraControlScreen> {
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 1.2,
-                              color: AppColors.textTertiary,
+                              color: context.palette.textTertiary,
                             ),
                           ),
                           const Spacer(),
@@ -176,7 +161,7 @@ class _CameraControlScreenState extends State<CameraControlScreen> {
                                 ? Icons.keyboard_arrow_up_rounded
                                 : Icons.keyboard_arrow_down_rounded,
                             size: 18,
-                            color: AppColors.textTertiary,
+                            color: context.palette.textTertiary,
                           ),
                         ],
                       ),
@@ -230,19 +215,19 @@ class _NotConnectedBanner extends StatelessWidget {
         vertical: AppConstants.spaceSm + 2,
       ),
       decoration: BoxDecoration(
-        color: AppColors.statusWarning.withValues(alpha: 0.1),
+        color: context.palette.statusWarning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppConstants.radiusSmall),
-        border: Border.all(color: AppColors.statusWarning.withValues(alpha: 0.3)),
+        border: Border.all(color: context.palette.statusWarning.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.bluetooth_disabled_rounded,
-              size: 16, color: AppColors.statusWarning),
+          Icon(Icons.bluetooth_disabled_rounded,
+              size: 16, color: context.palette.statusWarning),
           const SizedBox(width: AppConstants.spaceSm),
           Expanded(
             child: Text(
               'Connect the robot to enable controls.',
-              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
+              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary),
             ),
           ),
         ],
@@ -270,18 +255,18 @@ class _EmergencyBanner extends StatelessWidget {
         vertical: AppConstants.spaceSm + 2,
       ),
       decoration: BoxDecoration(
-        color: AppColors.statusEmergency.withValues(alpha: 0.1),
+        color: context.palette.statusEmergency.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppConstants.radiusSmall),
-        border: Border.all(color: AppColors.statusEmergency.withValues(alpha: 0.35)),
+        border: Border.all(color: context.palette.statusEmergency.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.report_rounded, size: 16, color: AppColors.statusEmergency),
+          Icon(Icons.report_rounded, size: 16, color: context.palette.statusEmergency),
           const SizedBox(width: AppConstants.spaceSm),
           Expanded(
             child: Text(
               'Emergency stop is active. All controls are locked.',
-              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
+              style: GoogleFonts.inter(fontSize: 12, color: context.palette.textSecondary),
             ),
           ),
           TextButton(
@@ -291,7 +276,7 @@ class _EmergencyBanner extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
-                color: AppColors.statusEmergency,
+                color: context.palette.statusEmergency,
               ),
             ),
           ),
@@ -318,7 +303,7 @@ class _ControllerPad extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1.0 : 0.45,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppConstants.radiusXLarge),
           gradient: RadialGradient(
@@ -343,104 +328,133 @@ class _ControllerPad extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _housing(
-              label: 'DRIVE',
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
+        // The two housings are sized FROM the width Flutter actually gives
+        // us, not from a guessed constant — so on any phone, big or small,
+        // "two circles + the gap between them" can never exceed what's
+        // available. This is what the previous fixed 212dp version got
+        // wrong: it assumed a screen width instead of measuring it, which
+        // is what produced the "RIGHT OVERFLOWED BY 113 PIXELS" crash.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const gap = 12.0;
+            final housingSize =
+                ((constraints.maxWidth - gap) / 2).clamp(0.0, 190.0);
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _housing(
+                  label: 'DRIVE',
+                  size: housingSize,
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      _PadButton(
-                        enabled: enabled,
-                        icon: Icons.keyboard_arrow_up_rounded,
-                        onTap: () => robot.moveForward(),
-                      ),
-                      const SizedBox(height: AppConstants.spaceSm),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           _PadButton(
                             enabled: enabled,
-                            icon: Icons.keyboard_arrow_left_rounded,
-                            onTap: () => robot.turnLeft(),
+                            size: housingSize * 0.29,
+                            icon: Icons.keyboard_arrow_up_rounded,
+                            onTap: () => robot.moveForward(),
                           ),
-                          const SizedBox(width: AppConstants.spaceSm),
+                          SizedBox(height: housingSize * 0.045),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _PadButton(
+                                enabled: enabled,
+                                size: housingSize * 0.29,
+                                icon: Icons.keyboard_arrow_left_rounded,
+                                onTap: () => robot.turnLeft(),
+                              ),
+                              SizedBox(width: housingSize * 0.045),
+                              _PadButton(
+                                enabled: enabled,
+                                size: housingSize * 0.29,
+                                icon: Icons.stop_rounded,
+                                onTap: () => robot.stopMovement(),
+                                emphasis: true,
+                              ),
+                              SizedBox(width: housingSize * 0.045),
+                              _PadButton(
+                                enabled: enabled,
+                                size: housingSize * 0.29,
+                                icon: Icons.keyboard_arrow_right_rounded,
+                                onTap: () => robot.turnRight(),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: housingSize * 0.045),
                           _PadButton(
                             enabled: enabled,
-                            icon: Icons.stop_rounded,
-                            onTap: () => robot.stopMovement(),
-                            emphasis: true,
-                          ),
-                          const SizedBox(width: AppConstants.spaceSm),
-                          _PadButton(
-                            enabled: enabled,
-                            icon: Icons.keyboard_arrow_right_rounded,
-                            onTap: () => robot.turnRight(),
+                            size: housingSize * 0.29,
+                            icon: Icons.keyboard_arrow_down_rounded,
+                            onTap: () => robot.moveBackward(),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppConstants.spaceSm),
-                      _PadButton(
-                        enabled: enabled,
-                        icon: Icons.keyboard_arrow_down_rounded,
-                        onTap: () => robot.moveBackward(),
+                    ],
+                  ),
+                ),
+                SizedBox(width: gap),
+                _housing(
+                  label: 'POSE',
+                  size: housingSize,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned(
+                        top: 0,
+                        child: _ActionButton(
+                          enabled: enabled,
+                          size: housingSize * 0.32,
+                          label: 'Stand',
+                          icon: Icons.height_rounded,
+                          onTap: () => robot.standPose(),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        child: _ActionButton(
+                          enabled: enabled,
+                          size: housingSize * 0.32,
+                          label: 'Sit',
+                          icon: Icons.expand_more_rounded,
+                          onTap: () => robot.sitPose(),
+                        ),
+                      ),
+                      Positioned(
+                        left: 0,
+                        child: _ActionButton(
+                          enabled: enabled,
+                          size: housingSize * 0.32,
+                          // A walking-human pictogram didn't fit a
+                          // 4-legged robot — a paw print reads correctly
+                          // at a glance.
+                          label: 'Walk',
+                          icon: Icons.pets_rounded,
+                          onTap: () => robot.walkGait(),
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        child: _ActionButton(
+                          enabled: enabled,
+                          size: housingSize * 0.32,
+                          label: 'Reset',
+                          icon: Icons.restart_alt_rounded,
+                          onTap: () => robot.resetPose(),
+                        ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            _housing(
-              label: 'POSE',
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Positioned(
-                    top: 0,
-                    child: _ActionButton(
-                      enabled: enabled,
-                      label: 'Stand',
-                      icon: Icons.height_rounded,
-                      onTap: () => robot.standPose(),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    child: _ActionButton(
-                      enabled: enabled,
-                      label: 'Sit',
-                      icon: Icons.expand_more_rounded,
-                      onTap: () => robot.sitPose(),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    child: _ActionButton(
-                      enabled: enabled,
-                      // A walking-human pictogram didn't fit a 4-legged
-                      // robot — a paw print reads correctly at a glance.
-                      label: 'Walk',
-                      icon: Icons.pets_rounded,
-                      onTap: () => robot.walkGait(),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    child: _ActionButton(
-                      enabled: enabled,
-                      label: 'Reset',
-                      icon: Icons.restart_alt_rounded,
-                      onTap: () => robot.resetPose(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -449,7 +463,7 @@ class _ControllerPad extends StatelessWidget {
   /// Shared recessed circular housing behind both the D-pad and the
   /// pose diamond, so the two clusters read as one cohesive controller
   /// rather than two unrelated widgets bolted together.
-  Widget _housing({required String label, required Widget child}) {
+  Widget _housing({required String label, required double size, required Widget child}) {
     return Builder(
       builder: (context) {
         final palette = context.palette;
@@ -457,14 +471,14 @@ class _ControllerPad extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 212,
-              height: 212,
+              width: size,
+              height: size,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   Container(
-                    width: 212,
-                    height: 212,
+                    width: size,
+                    height: size,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
@@ -518,12 +532,14 @@ class _ControllerPad extends StatelessWidget {
 class _PadButton extends StatefulWidget {
   const _PadButton({
     required this.enabled,
+    required this.size,
     required this.icon,
     required this.onTap,
     this.emphasis = false,
   });
 
   final bool enabled;
+  final double size;
   final IconData icon;
   final VoidCallback onTap;
   final bool emphasis;
@@ -543,7 +559,7 @@ class _PadButtonState extends State<_PadButton> {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    const size = 62.0;
+    final size = widget.size;
 
     return GestureDetector(
       onTapDown: (_) {
@@ -615,7 +631,7 @@ class _PadButtonState extends State<_PadButton> {
                 color: widget.emphasis
                     ? palette.statusEmergency
                     : palette.textSecondary,
-                size: widget.emphasis ? 22 : 26,
+                size: size * (widget.emphasis ? 0.36 : 0.42),
               ),
             ),
           ),
@@ -628,16 +644,19 @@ class _PadButtonState extends State<_PadButton> {
 /// One vertex of the Stand/Sit/Walk/Reset pose diamond — visually
 /// paired with [_PadButton] (same gradient, same bevel, same press
 /// animation) so the two housings read as one controller family.
-/// Bigger than the original mockup (68dp vs 58dp).
+/// Sized relative to the housing (computed by [_ControllerPad]) rather
+/// than a fixed constant, same fix as [_PadButton].
 class _ActionButton extends StatefulWidget {
   const _ActionButton({
     required this.enabled,
+    required this.size,
     required this.label,
     required this.icon,
     required this.onTap,
   });
 
   final bool enabled;
+  final double size;
   final String label;
   final IconData icon;
   final VoidCallback onTap;
@@ -657,7 +676,7 @@ class _ActionButtonState extends State<_ActionButton> {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    const size = 68.0;
+    final size = widget.size;
 
     return GestureDetector(
       onTapDown: (_) {
@@ -710,14 +729,15 @@ class _ActionButtonState extends State<_ActionButton> {
                 ],
               ),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(widget.icon, color: palette.gold, size: 19),
-                  const SizedBox(height: 2),
+                  Icon(widget.icon, color: palette.gold, size: size * 0.28),
+                  SizedBox(height: size * 0.03),
                   Text(
                     widget.label,
                     style: GoogleFonts.inter(
-                      fontSize: 9.5,
+                      fontSize: (size * 0.14).clamp(8.0, 10.5),
                       fontWeight: FontWeight.w600,
                       color: palette.textSecondary,
                     ),

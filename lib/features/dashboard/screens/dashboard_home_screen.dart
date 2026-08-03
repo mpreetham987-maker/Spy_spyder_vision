@@ -1,20 +1,24 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../data/models/robot_status.dart';
+import '../../../providers/camera_provider.dart';
 import '../../../providers/robot_provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../widgets/device_picker_sheet.dart';
 
-/// Dashboard tab: an at-a-glance status screen showing the robot's
-/// real connection state — Bluetooth link, battery, signal strength,
-/// mode, and movement — all sourced from the actual `STATUS:` packets
-/// the firmware sends over Bluetooth (see
-/// [RobotStatus.fromStatusLine]). Nothing here is a placeholder or
-/// simulated value; unconnected fields show "—" rather than a fake
-/// number.
+/// Dashboard tab: an at-a-glance status screen. Every reading here is
+/// sourced from real provider state — the robot's actual `STATUS:`
+/// packets over Bluetooth ([RobotProvider]), the actual MJPEG stream
+/// link state ([CameraProvider]), and the actual persisted robot name
+/// ([SettingsProvider]). Nothing is a placeholder number: unconnected
+/// fields show "—" rather than a fake reading.
 class DashboardHomeScreen extends StatelessWidget {
   const DashboardHomeScreen({super.key, this.onNavigateToTab});
 
@@ -26,181 +30,491 @@ class DashboardHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final robot = context.watch<RobotProvider>();
+    final camera = context.watch<CameraProvider>();
+    final settings = context.watch<SettingsProvider>();
+    final palette = context.palette;
     final connected = robot.isConnected;
     final status = robot.status;
+    final totalServos =
+        AppConstants.legServoMap.values.fold<int>(0, (a, b) => a + b.length);
 
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppConstants.spaceLg,
-            AppConstants.spaceMd,
-            AppConstants.spaceLg,
-            AppConstants.spaceXxl,
+      backgroundColor: Colors.transparent,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: palette.backgroundGradient,
           ),
-          children: [
-            Text(
-              'DASHBOARD',
-              style: GoogleFonts.outfit(
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-                color: AppColors.textPrimary,
-              ),
+        ),
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AppConstants.spaceLg,
+              AppConstants.spaceMd,
+              AppConstants.spaceLg,
+              AppConstants.spaceXxl,
             ),
-            const SizedBox(height: AppConstants.spaceLg),
-
-            // Bluetooth connection card — the primary status, since
-            // every other reading depends on this link being up.
-            _StatusTile(
-              icon: connected
-                  ? Icons.bluetooth_connected_rounded
-                  : Icons.bluetooth_disabled_rounded,
-              title: 'Bluetooth',
-              value: connected
-                  ? (robot.connectedDeviceName ?? 'Connected')
-                  : 'Not Connected',
-              tone: connected ? _Tone.connected : _Tone.idle,
-              trailing: TextButton(
-                onPressed: () => connected
-                    ? robot.disconnect()
-                    : DevicePickerSheet.show(context),
-                child: Text(
-                  connected ? 'DISCONNECT' : 'CONNECT',
-                  style: GoogleFonts.inter(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: connected ? AppColors.statusEmergency : AppColors.cyan,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppConstants.spaceMd),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _StatusTile(
-                    icon: _batteryIcon(status.batteryPercent),
-                    title: 'Battery',
-                    value: connected ? '${status.batteryPercent}%' : '—',
-                    tone: !connected
-                        ? _Tone.idle
-                        : (status.batteryPercent < 20 ? _Tone.warning : _Tone.connected),
-                    compact: true,
-                  ),
-                ),
-                const SizedBox(width: AppConstants.spaceMd),
-                Expanded(
-                  child: _StatusTile(
-                    icon: Icons.signal_cellular_alt_rounded,
-                    title: 'Signal',
-                    value: connected ? '${status.signalStrengthPercent}%' : '—',
-                    tone: !connected
-                        ? _Tone.idle
-                        : (status.signalStrengthPercent < 30
-                            ? _Tone.warning
-                            : _Tone.connected),
-                    compact: true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppConstants.spaceMd),
-
-            _StatusTile(
-              icon: Icons.tune_rounded,
-              title: 'Mode',
-              value: _modeLabel(status.mode),
-              tone: connected ? _Tone.connected : _Tone.idle,
-            ),
-            const SizedBox(height: AppConstants.spaceMd),
-
-            _StatusTile(
-              icon: status.isMoving
-                  ? Icons.directions_walk_rounded
-                  : Icons.accessibility_new_rounded,
-              title: 'Movement',
-              value: connected
-                  ? (status.isMoving ? 'Moving' : 'Stationary')
-                  : '—',
-              tone: connected ? _Tone.connected : _Tone.idle,
-            ),
-
-            if (robot.emergencyStopped) ...[
-              const SizedBox(height: AppConstants.spaceMd),
-              _StatusTile(
-                icon: Icons.report_rounded,
-                title: 'Emergency Stop',
-                value: 'Active — controls locked',
-                tone: _Tone.emergency,
-              ),
-            ],
-
-            if (onNavigateToTab != null) ...[
-              const SizedBox(height: AppConstants.spaceXl),
-              Text(
-                'QUICK ACTIONS',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
-                  color: AppColors.textTertiary,
-                ),
-              ),
-              const SizedBox(height: AppConstants.spaceMd),
+            children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _QuickJumpCard(
-                      icon: Icons.videogame_asset_rounded,
-                      label: 'Control',
-                      onTap: () => onNavigateToTab!(1),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShaderMask(
+                          shaderCallback: (bounds) => LinearGradient(
+                            colors: [palette.gold, palette.amethyst],
+                          ).createShader(bounds),
+                          child: Text(
+                            'SPY SPIDER VISION',
+                            style: GoogleFonts.outfit(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'TACTICAL ROBOTICS CONTROL',
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: AppConstants.spaceMd),
-                  Expanded(
-                    child: _QuickJumpCard(
-                      icon: Icons.center_focus_strong_rounded,
-                      label: 'AI Detection',
-                      onTap: () => onNavigateToTab!(2),
+                  _ThemeToggleButton(settings: settings),
+                ],
+              ),
+              const SizedBox(height: AppConstants.spaceLg),
+
+              // ---------------- Status card ----------------
+              Container(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                decoration: BoxDecoration(
+                  color: palette.glassFill,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
+                  border: Border.all(color: palette.glassStroke),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          settings.robotName,
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: () => connected
+                              ? robot.disconnect()
+                              : DevicePickerSheet.show(context),
+                          child: StatusBadge(
+                            label: connected ? 'LINK ACTIVE' : 'NO LINK',
+                            level: connected
+                                ? StatusLevel.connected
+                                : StatusLevel.idle,
+                            dense: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    _BatteryGauge(
+                      percent: status.batteryPercent,
+                      connected: connected,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatTile(
+                            emoji: '📡',
+                            value: connected ? '${status.signalStrengthPercent}%' : '—',
+                            label: 'SIGNAL',
+                          ),
+                        ),
+                        const SizedBox(width: AppConstants.spaceSm),
+                        Expanded(
+                          child: _StatTile(
+                            emoji: '🎥',
+                            value: camera.isStreaming ? 'Streaming' : 'Offline',
+                            label: 'CAMERA',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppConstants.spaceSm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _StatTile(
+                            emoji: '🦿',
+                            value: '$totalServos',
+                            label: 'SERVO CHANNELS',
+                          ),
+                        ),
+                        const SizedBox(width: AppConstants.spaceSm),
+                        Expanded(
+                          child: _StatTile(
+                            emoji: '🛡️',
+                            value: robot.emergencyStopped
+                                ? 'E-STOP'
+                                : (connected ? 'Ready' : 'Offline'),
+                            label: 'SYSTEM STATUS',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              if (robot.emergencyStopped) ...[
+                const SizedBox(height: AppConstants.spaceMd),
+                Container(
+                  padding: const EdgeInsets.all(AppConstants.spaceMd),
+                  decoration: BoxDecoration(
+                    color: palette.statusEmergency.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
+                    border: Border.all(
+                      color: palette.statusEmergency.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.report_rounded, color: palette.statusEmergency, size: 20),
+                      const SizedBox(width: AppConstants.spaceSm),
+                      Expanded(
+                        child: Text(
+                          'Emergency stop is active — controls are locked.',
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              if (onNavigateToTab != null) ...[
+                const SizedBox(height: AppConstants.spaceXl),
+                Text(
+                  'QUICK ACTIONS',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                    color: palette.textTertiary,
+                  ),
+                ),
+                const SizedBox(height: AppConstants.spaceMd),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickJumpCard(
+                        icon: Icons.videogame_asset_rounded,
+                        label: 'Control',
+                        onTap: () => onNavigateToTab!(1),
+                      ),
+                    ),
+                    const SizedBox(width: AppConstants.spaceMd),
+                    Expanded(
+                      child: _QuickJumpCard(
+                        icon: Icons.center_focus_strong_rounded,
+                        label: 'AI Detection',
+                        onTap: () => onNavigateToTab!(2),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppConstants.spaceMd),
+                _QuickJumpCard(
+                  icon: Icons.tune_rounded,
+                  label: 'Settings',
+                  onTap: () => onNavigateToTab!(3),
+                  fullWidth: true,
+                ),
+              ],
+            ],
+          ).animate().fadeIn(duration: AppConstants.animMedium),
+        ),
+      ),
+    );
+  }
+}
+
+/// Circular button top-right of the header that flips [SettingsProvider]'s
+/// theme mode — same toggle Settings exposes, just reachable from the
+/// dashboard too. The icon crossfades + spins on change instead of
+/// snapping, so it doesn't feel like a flat state flip.
+class _ThemeToggleButton extends StatelessWidget {
+  const _ThemeToggleButton({required this.settings});
+
+  final SettingsProvider settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final isDark = settings.isDarkMode;
+
+    return Material(
+      color: palette.surfaceHigh,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: palette.glassStroke),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          settings.setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark);
+        },
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              transitionBuilder: (child, anim) => RotationTransition(
+                turns: anim,
+                child: FadeTransition(opacity: anim, child: child),
+              ),
+              child: Icon(
+                isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                key: ValueKey(isDark),
+                color: palette.gold,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Animated circular battery indicator. On first connect it sweeps from
+/// 0% up to the real reading; on every subsequent `STATUS:` update it
+/// eases from the previous value to the new one (never snaps, never
+/// re-drains to 0 on a routine refresh).
+class _BatteryGauge extends StatefulWidget {
+  const _BatteryGauge({required this.percent, required this.connected});
+
+  final int percent;
+  final bool connected;
+
+  @override
+  State<_BatteryGauge> createState() => _BatteryGaugeState();
+}
+
+class _BatteryGaugeState extends State<_BatteryGauge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late Animation<double> _animation;
+  double _lastValue = 0;
+
+  double get _target => widget.connected ? widget.percent / 100 : 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    );
+    _animation = Tween(begin: 0.0, end: _target)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _lastValue = _target;
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant _BatteryGauge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final target = _target;
+    if (target != _lastValue) {
+      _animation = Tween(begin: _lastValue, end: target).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+      );
+      _lastValue = target;
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) {
+        final value = _animation.value;
+        return SizedBox(
+          width: 148,
+          height: 148,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: const Size(148, 148),
+                painter: _GaugePainter(
+                  progress: value,
+                  trackColor: palette.glassStroke,
+                  gradientColors: [palette.gold, palette.amethyst, palette.emerald],
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.connected ? '${(value * 100).round()}%' : '—',
+                    style: GoogleFonts.outfit(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: palette.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'BATTERY',
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2,
+                      color: palette.textTertiary,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppConstants.spaceMd),
-              _QuickJumpCard(
-                icon: Icons.tune_rounded,
-                label: 'Settings',
-                onTap: () => onNavigateToTab!(3),
-                fullWidth: true,
-              ),
             ],
-          ],
-        ).animate().fadeIn(duration: AppConstants.animMedium),
-      ),
+          ),
+        );
+      },
     );
   }
+}
 
-  IconData _batteryIcon(int percent) {
-    if (percent >= 80) return Icons.battery_full_rounded;
-    if (percent >= 50) return Icons.battery_5_bar_rounded;
-    if (percent >= 20) return Icons.battery_3_bar_rounded;
-    return Icons.battery_alert_rounded;
+class _GaugePainter extends CustomPainter {
+  _GaugePainter({
+    required this.progress,
+    required this.trackColor,
+    required this.gradientColors,
+  });
+
+  final double progress; // 0..1
+  final Color trackColor;
+  final List<Color> gradientColors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.shortestSide - 10) / 2;
+    const strokeWidth = 9.0;
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    if (progress <= 0) return;
+
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final gradient = SweepGradient(
+      colors: gradientColors,
+      stops: const [0.0, 0.55, 1.0],
+      transform: const GradientRotation(-math.pi / 2),
+    );
+    final progressPaint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * progress, false, progressPaint);
   }
 
-  String _modeLabel(RobotMode mode) {
-    switch (mode) {
-      case RobotMode.manual:
-        return 'Manual';
-      case RobotMode.auto:
-        return 'Auto';
-      case RobotMode.emergencyStopped:
-        return 'Emergency Stop';
-      case RobotMode.idle:
-        return 'Idle';
-    }
+  @override
+  bool shouldRepaint(covariant _GaugePainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.trackColor != trackColor ||
+      oldDelegate.gradientColors != gradientColors;
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.emoji,
+    required this.value,
+    required this.label,
+  });
+
+  final String emoji;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+      decoration: BoxDecoration(
+        color: palette.glassFill,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.glassStroke),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(height: 7),
+          Text(
+            value,
+            style: GoogleFonts.outfit(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: palette.textPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: palette.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -221,8 +535,9 @@ class _QuickJumpCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Material(
-      color: AppColors.glassFill,
+      color: palette.glassFill,
       borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
@@ -231,110 +546,25 @@ class _QuickJumpCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppConstants.spaceMd),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
-            border: Border.all(color: AppColors.glassStroke),
+            border: Border.all(color: palette.glassStroke),
           ),
           child: Row(
             mainAxisAlignment:
                 fullWidth ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
-              Icon(icon, color: AppColors.cyan, size: 20),
+              Icon(icon, color: palette.gold, size: 20),
               const SizedBox(width: AppConstants.spaceSm),
               Text(
                 label,
                 style: GoogleFonts.outfit(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: palette.textPrimary,
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-enum _Tone { connected, warning, idle, emergency }
-
-class _StatusTile extends StatelessWidget {
-  const _StatusTile({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.tone,
-    this.trailing,
-    this.compact = false,
-  });
-
-  final IconData icon;
-  final String title;
-  final String value;
-  final _Tone tone;
-  final Widget? trailing;
-  final bool compact;
-
-  Color get _color {
-    switch (tone) {
-      case _Tone.connected:
-        return AppColors.statusConnected;
-      case _Tone.warning:
-        return AppColors.statusWarning;
-      case _Tone.emergency:
-        return AppColors.statusEmergency;
-      case _Tone.idle:
-        return AppColors.textTertiary;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.spaceMd),
-      decoration: BoxDecoration(
-        color: AppColors.glassFill,
-        borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
-        border: Border.all(color: AppColors.glassStroke),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: _color, size: 20),
-          ),
-          const SizedBox(width: AppConstants.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 11.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: GoogleFonts.outfit(
-                    fontSize: compact ? 15 : 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (trailing != null) trailing!,
-        ],
       ),
     );
   }

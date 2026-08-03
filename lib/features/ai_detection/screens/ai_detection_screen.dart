@@ -13,10 +13,20 @@ import '../../../shared/widgets/emergency_stop_button.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../camera/widgets/mjpeg_stream_view.dart';
 
-/// Standalone AI Detection screen: its own ESP32-CAM feed with a
-/// real on-device object-detection toggle (Google ML Kit), separate
-/// from the manual gamepad Control screen. Detection is genuine
-/// inference on the actual decoded stream frames — never simulated.
+/// A single auto-captured snapshot. [bytes] is the *actual* JPEG frame
+/// that was already decoded off the live stream for inference — this
+/// is a real photo, not a re-render or a placeholder graphic.
+class _Snapshot {
+  _Snapshot({required this.bytes, required this.time, required this.label});
+  final Uint8List bytes;
+  final DateTime time;
+  final String label;
+}
+
+/// Standalone AI Detection screen: its own ESP32-CAM feed with a real
+/// on-device object-detection toggle (Google ML Kit), separate from
+/// the manual gamepad Control screen. Detection is genuine inference
+/// on the actual decoded stream frames — never simulated.
 class AiDetectionScreen extends StatefulWidget {
   const AiDetectionScreen({super.key});
 
@@ -26,7 +36,11 @@ class AiDetectionScreen extends StatefulWidget {
 
 class _AiDetectionScreenState extends State<AiDetectionScreen> {
   bool _aiEnabled = false;
+  bool _nightVision = false;
+  bool _autoSnapshot = false;
   List<Detection> _detections = [];
+  final List<_Snapshot> _snapshots = [];
+  DateTime? _lastSnapshotAt;
   late final AiDetectionService _ai;
 
   @override
@@ -44,7 +58,28 @@ class _AiDetectionScreenState extends State<AiDetectionScreen> {
   void _onFrame(Uint8List jpegBytes) {
     if (!_aiEnabled || _ai.isBusy) return;
     _ai.detect(jpegBytes).then((result) {
-      if (mounted) setState(() => _detections = result);
+      if (!mounted) return;
+      setState(() => _detections = result);
+      if (_autoSnapshot && result.isNotEmpty) {
+        _maybeCaptureSnapshot(jpegBytes, result);
+      }
+    });
+  }
+
+  /// Throttled so a burst of consecutive detections doesn't flood the
+  /// gallery — same cadence a person would actually want (roughly one
+  /// capture every few seconds), and it's a real frame every time.
+  void _maybeCaptureSnapshot(Uint8List bytes, List<Detection> detections) {
+    final now = DateTime.now();
+    if (_lastSnapshotAt != null &&
+        now.difference(_lastSnapshotAt!) < const Duration(seconds: 4)) {
+      return;
+    }
+    _lastSnapshotAt = now;
+    final label = detections.map((d) => d.label).toSet().join(', ');
+    setState(() {
+      _snapshots.insert(0, _Snapshot(bytes: bytes, time: now, label: label));
+      if (_snapshots.length > 24) _snapshots.removeRange(24, _snapshots.length);
     });
   }
 
@@ -56,23 +91,31 @@ class _AiDetectionScreenState extends State<AiDetectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final robot = context.watch<RobotProvider>();
     final camera = context.watch<CameraProvider>();
     final connected = robot.isConnected;
 
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spaceLg,
-                AppConstants.spaceMd,
-                AppConstants.spaceLg,
-                AppConstants.spaceSm,
-              ),
-              child: Row(
+      backgroundColor: Colors.transparent,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: palette.backgroundGradient,
+          ),
+        ),
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AppConstants.spaceLg,
+              AppConstants.spaceMd,
+              AppConstants.spaceLg,
+              AppConstants.spaceXxl,
+            ),
+            children: [
+              Row(
                 children: [
                   Text(
                     'AI DETECTION',
@@ -80,7 +123,7 @@ class _AiDetectionScreenState extends State<AiDetectionScreen> {
                       fontSize: 19,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.6,
-                      color: AppColors.textPrimary,
+                      color: palette.textPrimary,
                     ),
                   ),
                   const Spacer(),
@@ -91,47 +134,44 @@ class _AiDetectionScreenState extends State<AiDetectionScreen> {
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: AppConstants.spaceMd),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spaceLg,
-                0,
-                AppConstants.spaceLg,
-                AppConstants.spaceSm,
-              ),
-              child: AspectRatio(
+              AspectRatio(
                 aspectRatio: 4 / 3,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppConstants.radiusXLarge),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      MjpegStreamView(
-                        streamUrl: camera.streamUrl,
-                        onFrame: _onFrame,
+                      _NightVisionFilter(
+                        active: _nightVision,
+                        child: MjpegStreamView(
+                          streamUrl: camera.streamUrl,
+                          onFrame: _onFrame,
+                        ),
                       ),
                       if (_aiEnabled)
                         IgnorePointer(
                           child: CustomPaint(
-                            painter: _DetectionPainter(_detections),
+                            painter: _DetectionPainter(_detections, palette.amethyst),
                             size: Size.infinite,
                           ),
                         ),
+                      Positioned(
+                        top: 10,
+                        right: 12,
+                        child: _NightVisionButton(
+                          active: _nightVision,
+                          onTap: () => setState(() => _nightVision = !_nightVision),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-            ).animate().fadeIn(duration: AppConstants.animMedium),
+              ).animate().fadeIn(duration: AppConstants.animMedium),
+              const SizedBox(height: AppConstants.spaceMd),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spaceLg,
-                0,
-                AppConstants.spaceLg,
-                AppConstants.spaceSm,
-              ),
-              child: SizedBox(
+              SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: connected
@@ -147,8 +187,8 @@ class _AiDetectionScreenState extends State<AiDetectionScreen> {
                       : Icons.center_focus_strong_rounded),
                   label: Text(_aiEnabled ? 'Stop Detection' : 'Start Detection'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.cyan,
-                    foregroundColor: AppColors.charcoal,
+                    backgroundColor: palette.amethyst,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppConstants.radiusMedium),
@@ -160,71 +200,340 @@ class _AiDetectionScreenState extends State<AiDetectionScreen> {
                   ),
                 ),
               ),
-            ),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppConstants.spaceLg,
-                0,
-                AppConstants.spaceLg,
-                AppConstants.spaceSm,
-              ),
-              child: EmergencyStopButton(onPressed: () => robot.emergencyStop()),
-            ),
-
-            if (!connected)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppConstants.spaceLg),
-                child: Text(
+              if (!connected) ...[
+                const SizedBox(height: AppConstants.spaceSm),
+                Text(
                   'Connect the robot to start AI detection.',
-                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
+                  style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
                 ),
-              ),
+              ],
+              const SizedBox(height: AppConstants.spaceMd),
 
-            // Detected-objects panel fills the remaining space with
-            // real content instead of leaving it empty: every row here
-            // is an actual current Detection, never a placeholder.
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppConstants.spaceLg,
-                  AppConstants.spaceMd,
-                  AppConstants.spaceLg,
-                  AppConstants.spaceMd,
+              // ---------------- Auto-save snapshots ----------------
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppConstants.spaceMd),
+                decoration: BoxDecoration(
+                  color: palette.glassFill,
+                  borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
+                  border: Border.all(color: palette.glassStroke),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      'DETECTED OBJECTS',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
-                        color: AppColors.textTertiary,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: AppConstants.spaceSm + 2),
+                          Text(
+                            'Auto-Save Snapshots',
+                            style: GoogleFonts.inter(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Captures a real frame whenever something is detected',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: palette.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: AppConstants.spaceSm + 2),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: AppConstants.spaceSm),
-                    Expanded(
-                      child: !_aiEnabled
-                          ? _EmptyHint(text: 'Start detection to see results here.')
-                          : (_detections.isEmpty
-                              ? _EmptyHint(text: 'No objects in view yet.')
-                              : ListView.separated(
-                                  itemCount: _detections.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: AppConstants.spaceSm),
-                                  itemBuilder: (context, i) {
-                                    final d = _detections[i];
-                                    return _DetectionRow(detection: d);
-                                  },
-                                )),
+                    Switch(
+                      value: _autoSnapshot,
+                      activeColor: palette.emerald,
+                      onChanged: (v) => setState(() => _autoSnapshot = v),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: AppConstants.spaceLg),
+
+              Row(
+                children: [
+                  Text(
+                    'SNAPSHOTS',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                      color: palette.textTertiary,
+                    ),
+                  ),
+                  const SizedBox(width: AppConstants.spaceSm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: palette.gold.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${_snapshots.length}',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: palette.gold,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_snapshots.isNotEmpty)
+                    GestureDetector(
+                      onTap: () => setState(() => _snapshots.clear()),
+                      child: Text(
+                        'CLEAR',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textTertiary,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppConstants.spaceSm),
+              SizedBox(
+                height: 72,
+                child: _snapshots.isEmpty
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'No snapshots yet — turn on Auto-Save above, then start detection.',
+                          style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
+                        ),
+                      )
+                    : ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _snapshots.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, i) => _SnapshotThumb(
+                          snapshot: _snapshots[i],
+                          onTap: () => _openSnapshot(context, i),
+                        ),
+                      ),
+              ),
+              const SizedBox(height: AppConstants.spaceLg),
+
+              EmergencyStopButton(onPressed: () => robot.emergencyStop()),
+              const SizedBox(height: AppConstants.spaceLg),
+
+              // Detected-objects panel: every row here is an actual
+              // current Detection, never a placeholder.
+              Text(
+                'DETECTED OBJECTS',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                  color: palette.textTertiary,
+                ),
+              ),
+              const SizedBox(height: AppConstants.spaceSm),
+              if (!_aiEnabled)
+                _EmptyHint(text: 'Start detection to see results here.')
+              else if (_detections.isEmpty)
+                _EmptyHint(text: 'No objects in view yet.')
+              else
+                Column(
+                  children: [
+                    for (final d in _detections) ...[
+                      _DetectionRow(detection: d),
+                      const SizedBox(height: AppConstants.spaceSm),
+                    ],
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openSnapshot(BuildContext context, int index) {
+    final palette = context.palette;
+    final snap = _snapshots[index];
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppConstants.spaceLg,
+            AppConstants.spaceMd,
+            AppConstants.spaceLg,
+            AppConstants.spaceXl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppConstants.spaceMd),
+                  decoration: BoxDecoration(
+                    color: palette.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                snap.label.isEmpty ? 'Detection' : snap.label,
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: palette.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${snap.time.hour.toString().padLeft(2, '0')}:'
+                '${snap.time.minute.toString().padLeft(2, '0')}:'
+                '${snap.time.second.toString().padLeft(2, '0')}',
+                style: GoogleFonts.inter(fontSize: 11.5, color: palette.textTertiary),
+              ),
+              const SizedBox(height: AppConstants.spaceMd),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
+                child: Image.memory(snap.bytes, width: double.infinity, fit: BoxFit.cover),
+              ),
+              const SizedBox(height: AppConstants.spaceMd),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() => _snapshots.removeAt(index));
+                        Navigator.of(sheetContext).pop();
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.statusEmergency,
+                        side: BorderSide(color: palette.statusEmergency.withValues(alpha: 0.4)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.radiusMedium),
+                        ),
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  ),
+                  const SizedBox(width: AppConstants.spaceMd),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: palette.gold,
+                        foregroundColor: palette.surface,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.radiusMedium),
+                        ),
+                      ),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Small circular toggle overlaid on the feed's top-right corner.
+class _NightVisionButton extends StatelessWidget {
+  const _NightVisionButton({required this.active, required this.onTap});
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Material(
+      color: active ? palette.emerald : Colors.black.withValues(alpha: 0.4),
+      shape: CircleBorder(
+        side: BorderSide(color: active ? palette.emerald : palette.glassStroke),
+      ),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 32,
+          height: 32,
+          child: Icon(
+            Icons.dark_mode_rounded,
+            size: 15,
+            color: active ? const Color(0xFF04140E) : palette.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Wraps the camera feed with a green-tinted, high-contrast look when
+/// night vision is on — a real color transform (ColorFilter matrix)
+/// applied to the actual live frame, not a static overlay image.
+class _NightVisionFilter extends StatelessWidget {
+  const _NightVisionFilter({required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  static const _matrix = <double>[
+    0.35, 0.9, 0.35, 0, -20,
+    0.35, 0.9, 0.35, 0, 10,
+    0.15, 0.4, 0.15, 0, -20,
+    0, 0, 0, 1, 0,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      child: active
+          ? ColorFiltered(
+              key: const ValueKey('nv-on'),
+              colorFilter: const ColorFilter.matrix(_matrix),
+              child: child,
+            )
+          : KeyedSubtree(key: const ValueKey('nv-off'), child: child),
+    );
+  }
+}
+
+class _SnapshotThumb extends StatelessWidget {
+  const _SnapshotThumb({required this.snapshot, required this.onTap});
+
+  final _Snapshot snapshot;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(border: Border.all(color: palette.glassStroke)),
+          child: Image.memory(snapshot.bytes, fit: BoxFit.cover),
         ),
       ),
     );
@@ -237,10 +546,11 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppConstants.spaceLg),
       child: Text(
         text,
-        style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textTertiary),
+        style: GoogleFonts.inter(fontSize: 12.5, color: context.palette.textTertiary),
       ),
     );
   }
@@ -252,25 +562,25 @@ class _DetectionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppConstants.spaceMd,
         vertical: AppConstants.spaceSm + 2,
       ),
       decoration: BoxDecoration(
-        color: AppColors.glassFill,
+        color: palette.glassFill,
         borderRadius: BorderRadius.circular(AppConstants.radiusMedium),
-        border: Border.all(color: AppColors.glassStroke),
+        border: Border.all(color: palette.glassStroke),
       ),
       child: Row(
         children: [
-          const Icon(Icons.center_focus_strong_rounded,
-              size: 16, color: AppColors.cyan),
+          Icon(Icons.center_focus_strong_rounded, size: 16, color: palette.amethyst),
           const SizedBox(width: AppConstants.spaceSm),
           Expanded(
             child: Text(
               detection.label,
-              style: GoogleFonts.inter(fontSize: 13, color: AppColors.textPrimary),
+              style: GoogleFonts.inter(fontSize: 13, color: palette.textPrimary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -279,7 +589,7 @@ class _DetectionRow extends StatelessWidget {
             style: GoogleFonts.outfit(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppColors.cyan,
+              color: palette.amethyst,
             ),
           ),
         ],
@@ -292,13 +602,14 @@ class _DetectionRow extends StatelessWidget {
 /// and label comes directly from the on-device model's output for the
 /// current frame; nothing here is randomized, hardcoded, or simulated.
 class _DetectionPainter extends CustomPainter {
-  _DetectionPainter(this.detections);
+  _DetectionPainter(this.detections, this.color);
   final List<Detection> detections;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final boxPaint = Paint()
-      ..color = AppColors.cyan
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -322,7 +633,7 @@ class _DetectionPainter extends CustomPainter {
             color: Colors.white,
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            backgroundColor: AppColors.cyan.withValues(alpha: 0.85),
+            backgroundColor: color.withValues(alpha: 0.85),
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -333,5 +644,5 @@ class _DetectionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DetectionPainter oldDelegate) =>
-      oldDelegate.detections != detections;
+      oldDelegate.detections != detections || oldDelegate.color != color;
 }

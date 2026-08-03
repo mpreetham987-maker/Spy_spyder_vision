@@ -72,6 +72,11 @@ class _MjpegStreamViewState extends State<MjpegStreamView> {
         return;
       }
 
+      if (!mounted) {
+        _client?.close();
+        return;
+      }
+
       _subscription = response.stream.listen(
         _onData,
         onError: (_) => _fail(),

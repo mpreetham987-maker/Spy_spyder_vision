@@ -87,7 +87,7 @@ class SettingsScreen extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppColors.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ),
@@ -156,7 +156,7 @@ class SettingsScreen extends StatelessWidget {
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: GoogleFonts.inter(color: AppColors.textPrimary),
+          style: GoogleFonts.inter(color: context.palette.textPrimary),
           decoration: const InputDecoration(hintText: 'e.g. SPIDER-01'),
         ),
         actions: [
@@ -190,7 +190,7 @@ class SettingsScreen extends StatelessWidget {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.url,
-          style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 13),
+          style: GoogleFonts.inter(color: context.palette.textPrimary, fontSize: 13),
           decoration: const InputDecoration(
             hintText: AppConstants.defaultCameraUrlHint,
           ),
@@ -230,7 +230,7 @@ class SettingsScreen extends StatelessWidget {
           'spider robot built on Arduino Uno, ESP32, and ESP32-CAM. '
           'Controls 8 SG90 servos and streams live video over the '
           'local network.',
-          style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
+          style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary),
         ),
       ],
     );
@@ -382,17 +382,17 @@ class _WalkingSpeedRowState extends State<_WalkingSpeedRow> {
         children: [
           Row(
             children: [
-              const Icon(Icons.speed_rounded, size: 19, color: AppColors.cyan),
+              Icon(Icons.speed_rounded, size: 19, color: context.palette.gold),
               const SizedBox(width: AppConstants.spaceMd),
               Expanded(
                 child: Text(
                   'Walking Speed',
-                  style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
+                  style: GoogleFonts.inter(fontSize: 14, color: context.palette.textPrimary),
                 ),
               ),
               Text(
                 '${(displayValue * 100).round()}%',
-                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
+                style: GoogleFonts.inter(fontSize: 13, color: context.palette.textSecondary),
               ),
             ],
           ),
