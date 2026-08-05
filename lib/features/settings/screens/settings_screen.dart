@@ -344,8 +344,15 @@ class _WalkingSpeedRowState extends State<_WalkingSpeedRow> {
   double? _dragValue;
 
   void _onChanged(double v) {
+    // Local state only — this is what keeps the thumb and the "NN%"
+    // label tracking the finger every frame without touching
+    // SettingsProvider. Calling settings.setWalkingSpeed() here (as
+    // this used to) persists to disk AND calls notifyListeners() on
+    // every pixel of drag; since SettingsProvider used to be watched
+    // at the very top of the widget tree, each of those notifications
+    // rebuilt the entire app. That round-trip was the walking-speed
+    // slider's lag, not the slider itself.
     setState(() => _dragValue = v);
-    widget.settings.setWalkingSpeed(v); // persistence is cheap; not throttled
     _pending = v;
     _throttle ??= Timer.periodic(AppConstants.sliderSendInterval, (_) {
       final p = _pending;
@@ -358,6 +365,10 @@ class _WalkingSpeedRowState extends State<_WalkingSpeedRow> {
     _throttle = null;
     _pending = null;
     setState(() => _dragValue = null);
+    // Persist + notify exactly once, when the drag actually ends —
+    // the value is already final, so there's nothing gained by having
+    // done this on every intermediate frame.
+    widget.settings.setWalkingSpeed(v);
     widget.robot.setWalkingSpeed((v * 100).round());
   }
 

@@ -4,17 +4,20 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_constants.dart';
 
-/// A frosted-glass surface: blurred backdrop + translucent fill + a
-/// hairline gold stroke + a soft diagonal sheen. This is the single
-/// visual primitive behind every card in the app, so all
-/// "glassmorphism" in the spec routes through here.
+/// A "liquid glass" surface: a heavier frosted blur, a translucent
+/// fill, a bright hairline edge, and a curved specular highlight
+/// hugging the top so the surface reads as a refractive layer of
+/// glass sitting over the background rather than a flat tinted panel.
+/// This is the single visual primitive behind every card/controller
+/// surface in the app, so all "glassmorphism" in the spec routes
+/// through here.
 class GlassCard extends StatelessWidget {
   const GlassCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(AppConstants.spaceMd),
     this.borderRadius = AppConstants.radiusLarge,
-    this.blurSigma = 18,
+    this.blurSigma = 26,
     this.fillColor,
     this.borderColor,
     this.onTap,
@@ -51,14 +54,18 @@ class GlassCard extends StatelessWidget {
             color: fillColor ?? palette.glassFill,
             borderRadius: radius,
             border: Border.all(
-              color: borderColor ?? palette.glassStroke,
+              // A brighter, thinner edge than the fill reads as light
+              // catching the rim of a curved glass surface.
+              color: borderColor ?? Colors.white.withValues(alpha: 0.22),
               width: 1,
             ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
+              stops: const [0.0, 0.35, 1.0],
               colors: [
-                sheenTop.withValues(alpha: accent != null ? 0.10 : 0.06),
+                sheenTop.withValues(alpha: accent != null ? 0.16 : 0.12),
+                sheenTop.withValues(alpha: accent != null ? 0.05 : 0.03),
                 Colors.white.withValues(alpha: 0.0),
               ],
             ),
@@ -70,7 +77,31 @@ class GlassCard extends StatelessWidget {
               ),
             ],
           ),
-          child: child,
+          // A short, curved specular highlight along the top edge —
+          // the detail that sells "liquid glass" over a flat gradient.
+          child: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: borderRadius * 0.6,
+                right: borderRadius * 0.6,
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(1),
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.0),
+                        Colors.white.withValues(alpha: 0.5),
+                        Colors.white.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              child,
+            ],
+          ),
         ),
       ),
     );

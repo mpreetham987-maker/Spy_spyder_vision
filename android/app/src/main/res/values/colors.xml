@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Matches AppColors.charcoal in app_constants.dart exactly, so
-         the native cold-start screen and the first Flutter-drawn
-         frame are the same color — no flash between them. -->
-    <color name="launch_background">#FF0B0A16</color>
-    <!-- Matches AppColors.cyan (actually gold, #D8B75B) — the same
-         color the spider mark's body is drawn in. -->
-    <color name="launch_mark">#FFD8B75B</color>
+    <!-- Royal Midnight charcoal — must match AppPalette.dark's base
+         background color in lib/core/constants/app_constants.dart so
+         the native splash and the Dart splash screen are seamless. -->
+    <color name="launch_background_color">#0B0A16</color>
 </resources>

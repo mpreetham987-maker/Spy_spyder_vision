@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -463,6 +465,11 @@ class _ControllerPad extends StatelessWidget {
   /// Shared recessed circular housing behind both the D-pad and the
   /// pose diamond, so the two clusters read as one cohesive controller
   /// rather than two unrelated widgets bolted together.
+  ///
+  /// Rendered as liquid glass — a blurred, translucent disc with a
+  /// curved top specular highlight — with no hairline ring around the
+  /// outside, so the housing reads as one continuous glass surface
+  /// instead of two circles with a drawn outline on top.
   Widget _housing({required String label, required double size, required Widget child}) {
     return Builder(
       builder: (context) {
@@ -476,31 +483,35 @@ class _ControllerPad extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Container(
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [palette.surfaceHigh, palette.surface],
-                      ),
-                      border: Border.all(
-                        color: palette.glassStroke.withValues(alpha: 0.6),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.shadow,
-                          blurRadius: 10,
-                          offset: const Offset(4, 4),
+                  ClipOval(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                      child: Container(
+                        width: size,
+                        height: size,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            center: const Alignment(-0.3, -0.4),
+                            radius: 1.1,
+                            colors: [
+                              palette.surfaceHigh.withValues(alpha: 0.55),
+                              palette.surface.withValues(alpha: 0.42),
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: palette.shadow,
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          blurRadius: 8,
-                          offset: const Offset(-3, -3),
+                        child: CustomPaint(
+                          size: Size(size, size),
+                          painter: _LiquidGlassSheenPainter(),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                   child,
@@ -522,6 +533,46 @@ class _ControllerPad extends StatelessWidget {
       },
     );
   }
+}
+
+/// Paints the curved specular highlight arc across the top of a
+/// liquid-glass disc — the detail that makes a blurred translucent
+/// circle read as glass catching light rather than a flat tinted disc.
+/// No outline is drawn; the housing's edge is defined only by the
+/// [ClipOval] + blur, not a stroked ring.
+class _LiquidGlassSheenPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final highlight = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.35, -0.55),
+        radius: 0.9,
+        colors: [
+          Colors.white.withValues(alpha: 0.16),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, highlight);
+
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.045
+      ..strokeCap = StrokeCap.round
+      ..shader = LinearGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.0),
+          Colors.white.withValues(alpha: 0.35),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+      ).createShader(rect);
+
+    final arcRect = rect.deflate(size.width * 0.035);
+    canvas.drawArc(arcRect, 3.6, 1.6, false, arcPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// One button of the D-pad. Bigger touch target than the original

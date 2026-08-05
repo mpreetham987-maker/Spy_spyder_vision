@@ -1,16 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Native cold-start screen, shown before the Flutter engine has
-     loaded anything — this is what was previously plain black,
-     unrelated to the app's actual brand color. It now matches the
-     Dart splash screen's background (#0B0A16) with a small centered
-     dot in the brand gold, so when Flutter's first frame appears
-     (the animated spider mark fading/scaling in from the same spot)
-     it reads as one continuous reveal instead of a jarring cut. -->
+<!-- Native splash background shown before Flutter's first frame draws.
+     Matches the app's "Royal Midnight" charcoal (#0B0A16) instead of
+     plain black, so there's no jarring black flash before the branded
+     Dart splash screen takes over. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/launch_background" />
-    <item android:width="14dp" android:height="14dp" android:gravity="center">
-        <shape android:shape="oval">
-            <solid android:color="@color/launch_mark" />
-        </shape>
-    </item>
+    <item android:drawable="@color/launch_background_color" />
 </layer-list>

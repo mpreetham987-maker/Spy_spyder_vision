@@ -45,15 +45,39 @@ class SpySpiderVisionApp extends StatelessWidget {
           create: (_) => SettingsProvider(preferences),
         ),
       ],
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, _) {
+      // Selector, not Consumer: SettingsProvider.notifyListeners() also
+      // fires on every walking-speed slider pixel and every robot-name
+      // edit, and a Consumer<SettingsProvider> here rebuilds this
+      // MaterialApp — and therefore every screen and every glass blur
+      // beneath it — on each of those. Selecting just [ThemeMode] means
+      // that full-tree rebuild only happens when the theme actually
+      // changes; unrelated settings changes no longer touch this widget
+      // at all. This is what was behind the app-wide lag on the
+      // walking-speed slider and the robot-name field.
+      child: Selector<SettingsProvider, ThemeMode>(
+        selector: (_, settings) => settings.themeMode,
+        builder: (context, themeMode, _) {
           return MaterialApp(
             title: 'Spy Spider Vision',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
-            themeMode: settings.themeMode,
+            themeMode: themeMode,
             home: const SplashScreen(),
+            // Wrapping the resolved theme in AnimatedTheme turns a Light
+            // ⇄ Dark switch from an instant, all-at-once color snap
+            // (which is what read as "laggy" — one huge frame doing all
+            // the work at once) into a smooth ~420ms interpolation,
+            // using the AppPalette.lerp already defined for exactly
+            // this purpose.
+            builder: (context, child) {
+              return AnimatedTheme(
+                data: Theme.of(context),
+                duration: const Duration(milliseconds: 420),
+                curve: Curves.easeInOutCubic,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
           );
         },
       ),
