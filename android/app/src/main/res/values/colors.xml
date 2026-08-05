@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches AppColors.charcoal in app_constants.dart exactly, so
+         the native cold-start screen and the first Flutter-drawn
+         frame are the same color — no flash between them. -->
+    <color name="launch_background">#FF0B0A16</color>
+    <!-- Matches AppColors.cyan (actually gold, #D8B75B) — the same
+         color the spider mark's body is drawn in. -->
+    <color name="launch_mark">#FFD8B75B</color>
+</resources>

@@ -40,6 +40,7 @@ class RobotProvider extends ChangeNotifier {
   bool get isConnected => _btState == BtConnectionState.connected;
   bool get isScanning => _btState == BtConnectionState.scanning;
   bool get isConnecting => _btState == BtConnectionState.connecting;
+  bool get permissionDenied => _btState == BtConnectionState.permissionDenied;
   String? get connectedDeviceName => _bluetooth.connectedDevice?.name;
 
   // ---------------------------------------------------------------------
@@ -90,6 +91,11 @@ class RobotProvider extends ChangeNotifier {
     if (!enabled) return;
     await _bluetooth.scanDevices();
   }
+
+  /// Opens the OS app-settings screen so the user can grant Bluetooth
+  /// permission after having denied it once ("Don't ask again") —
+  /// the request dialog won't reappear on its own after that.
+  Future<void> openPermissionSettings() => _bluetooth.openPermissionSettings();
 
   Future<bool> connectToDevice(BluetoothDevice device) async {
     final ok = await _bluetooth.connect(device);

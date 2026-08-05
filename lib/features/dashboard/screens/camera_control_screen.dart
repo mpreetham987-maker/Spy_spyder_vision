@@ -338,7 +338,7 @@ class _ControllerPad extends StatelessWidget {
           builder: (context, constraints) {
             const gap = 12.0;
             final housingSize =
-                ((constraints.maxWidth - gap) / 2).clamp(0.0, 190.0);
+                ((constraints.maxWidth - gap) / 2).clamp(0.0, 215.0);
 
             return Row(
               mainAxisAlignment: MainAxisAlignment.center,

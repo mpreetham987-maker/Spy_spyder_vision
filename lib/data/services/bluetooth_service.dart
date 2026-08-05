@@ -3,9 +3,24 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// Connection lifecycle for the robot's Bluetooth link.
-enum BtConnectionState { disconnected, scanning, connecting, connected, error }
+///
+/// [permissionDenied] exists specifically so a missing/denied runtime
+/// permission (Android 12+ requires BLUETOOTH_SCAN/BLUETOOTH_CONNECT
+/// to be granted at runtime, not just declared in the manifest) shows
+/// up as a normal, handleable state instead of an uncaught exception
+/// from the native plugin — that uncaught exception was the actual
+/// cause of the "crash on connect" bug.
+enum BtConnectionState {
+  disconnected,
+  scanning,
+  connecting,
+  connected,
+  error,
+  permissionDenied,
+}
 
 /// Wraps `flutter_bluetooth_serial` to talk to the robot's Bluetooth
 /// module (typically bridged through the Arduino Uno / ESP32).
@@ -56,11 +71,52 @@ class RobotBluetoothService {
 
   /// Confirms the adapter is on; on Android this also triggers the
   /// system permission prompts the plugin needs.
+  /// Requests the runtime permissions Android 12+ requires before any
+  /// Bluetooth API call is safe to make. Declaring BLUETOOTH_SCAN /
+  /// BLUETOOTH_CONNECT in the manifest is necessary but not
+  /// sufficient — without this explicit runtime grant, the native
+  /// plugin throws a PlatformException the moment it's touched.
+  Future<bool> _ensurePermissions() async {
+    final statuses = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      // Pre-Android-12 devices gate discovery on location instead.
+      Permission.locationWhenInUse,
+    ].request();
+
+    // Location is only required on older OS versions where the
+    // Bluetooth-specific permissions above don't exist yet — Android
+    // reports those as "denied" rather than granting them, so it's
+    // deliberately excluded from this check.
+    return statuses[Permission.bluetoothScan]!.isGranted &&
+        statuses[Permission.bluetoothConnect]!.isGranted;
+  }
+
+  /// Opens the OS app-settings screen — the only way to recover once
+  /// a permission has been permanently denied ("Don't ask again").
+  Future<void> openPermissionSettings() => openAppSettings();
+
   Future<bool> ensureAdapterEnabled() async {
-    final isEnabled = await _bluetooth.isEnabled ?? false;
-    if (isEnabled) return true;
-    final requested = await _bluetooth.requestEnable();
-    return requested ?? false;
+    try {
+      final granted = await _ensurePermissions();
+      if (!granted) {
+        _setState(BtConnectionState.permissionDenied);
+        return false;
+      }
+
+      final isEnabled = await _bluetooth.isEnabled ?? false;
+      if (isEnabled) return true;
+
+      final requested = await _bluetooth.requestEnable();
+      return requested ?? false;
+    } catch (_) {
+      // Any native-side failure (adapter missing, plugin error, user
+      // dismissed the enable prompt in a way the plugin doesn't
+      // handle, etc.) becomes a normal error state instead of an
+      // uncaught exception.
+      _setState(BtConnectionState.error);
+      return false;
+    }
   }
 
   /// Scans for nearby + already-bonded devices. Bonded devices are

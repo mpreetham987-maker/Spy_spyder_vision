@@ -127,84 +127,172 @@ class _DevicePickerSheetState extends State<DevicePickerSheet> {
               ),
               const SizedBox(height: AppConstants.spaceMd),
               Expanded(
-                child: robot.discoveredDevices.isEmpty
-                    ? _EmptyState(scanning: robot.isScanning)
-                    : ListView.separated(
-                        controller: scrollController,
-                        itemCount: robot.discoveredDevices.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppConstants.spaceSm),
-                        itemBuilder: (context, index) {
-                          final device = robot.discoveredDevices[index];
-                          final isThisConnecting =
-                              _connectingTo && _connectingAddress == device.address;
-                          return GlassCard(
-                            onTap: _connectingTo ? null : () => _connect(device),
-                            padding: const EdgeInsets.all(AppConstants.spaceMd),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.cyan.withValues(alpha: 0.14),
-                                    borderRadius: BorderRadius.circular(11),
-                                  ),
-                                  child: const Icon(
-                                    Icons.bluetooth_rounded,
-                                    color: AppColors.cyan,
-                                    size: 19,
-                                  ),
-                                ),
-                                const SizedBox(width: AppConstants.spaceMd),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        device.name?.isNotEmpty == true
-                                            ? device.name!
-                                            : 'Unknown device',
-                                        style: GoogleFonts.outfit(
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary,
-                                          fontSize: 14.5,
-                                        ),
+                child: robot.permissionDenied
+                    ? _PermissionDeniedState(
+                        onOpenSettings: () => robot.openPermissionSettings(),
+                        onRetry: () => robot.scanForDevices(),
+                      )
+                    : robot.discoveredDevices.isEmpty
+                        ? _EmptyState(scanning: robot.isScanning)
+                        : ListView.separated(
+                            controller: scrollController,
+                            itemCount: robot.discoveredDevices.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: AppConstants.spaceSm),
+                            itemBuilder: (context, index) {
+                              final device = robot.discoveredDevices[index];
+                              final isThisConnecting = _connectingTo &&
+                                  _connectingAddress == device.address;
+                              return GlassCard(
+                                onTap:
+                                    _connectingTo ? null : () => _connect(device),
+                                padding: const EdgeInsets.all(AppConstants.spaceMd),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 38,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.cyan.withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(11),
                                       ),
-                                      Text(
-                                        device.address,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11.5,
-                                          color: AppColors.textTertiary,
-                                        ),
+                                      child: const Icon(
+                                        Icons.bluetooth_rounded,
+                                        color: AppColors.cyan,
+                                        size: 19,
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                if (isThisConnecting)
-                                  const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.cyan,
                                     ),
-                                  )
-                                else
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: AppColors.textTertiary,
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                                    const SizedBox(width: AppConstants.spaceMd),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            device.name?.isNotEmpty == true
+                                                ? device.name!
+                                                : 'Unknown device',
+                                            style: GoogleFonts.outfit(
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textPrimary,
+                                              fontSize: 14.5,
+                                            ),
+                                          ),
+                                          Text(
+                                            device.address,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11.5,
+                                              color: AppColors.textTertiary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isThisConnecting)
+                                      const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.cyan,
+                                        ),
+                                      )
+                                    else
+                                      const Icon(
+                                        Icons.chevron_right_rounded,
+                                        color: AppColors.textTertiary,
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _PermissionDeniedState extends StatelessWidget {
+  const _PermissionDeniedState({
+    required this.onOpenSettings,
+    required this.onRetry,
+  });
+
+  final VoidCallback onOpenSettings;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppConstants.spaceLg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.bluetooth_disabled_rounded,
+              size: 40,
+              color: AppColors.statusWarning.withValues(alpha: 0.7),
+            ),
+            const SizedBox(height: AppConstants.spaceMd),
+            Text(
+              'Bluetooth permission needed',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppConstants.spaceSm),
+            Text(
+              "Grant Bluetooth access so the app can find and pair with your robot.",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: AppConstants.spaceLg),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton(
+                  onPressed: onRetry,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.glassStroke),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppConstants.spaceMd,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusMedium),
+                    ),
+                  ),
+                  child: const Text('Try Again'),
+                ),
+                const SizedBox(width: AppConstants.spaceSm),
+                FilledButton(
+                  onPressed: onOpenSettings,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.cyan,
+                    foregroundColor: AppColors.charcoal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppConstants.spaceMd,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.radiusMedium),
+                    ),
+                  ),
+                  child: const Text('Open Settings'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
