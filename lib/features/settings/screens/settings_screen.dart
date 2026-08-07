@@ -76,19 +76,16 @@ class SettingsScreen extends StatelessWidget {
                 SettingsRow(
                   icon: Icons.videocam_rounded,
                   label: 'ESP32 Camera URL',
-                  value: null,
                   showDivider: false,
                   onTap: () => _showCameraUrlDialog(context, camera, settings),
-                  trailing: SizedBox(
-                    width: 140,
-                    child: Text(
-                      settings.cameraUrl,
-                      textAlign: TextAlign.right,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: context.palette.textSecondary,
-                      ),
+                  // Full URLs (http://192.168.4.1:81/stream, etc.) don't
+                  // fit beside the label without truncating — shown on
+                  // its own line underneath instead, wrapping if needed.
+                  subtitle: Text(
+                    settings.cameraUrl,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ),

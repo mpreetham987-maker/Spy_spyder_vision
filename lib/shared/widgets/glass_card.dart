@@ -17,7 +17,15 @@ class GlassCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(AppConstants.spaceMd),
     this.borderRadius = AppConstants.radiusLarge,
-    this.blurSigma = 26,
+    // 14, not 26 — BackdropFilter blur cost scales with sigma², so this
+    // is roughly a 3x cheaper GPU pass per card per frame. That matters
+    // a lot here specifically because every glass card on screen gets
+    // re-blurred on every frame of a theme-switch animation (the
+    // interpolating ThemeData touches context.palette, which every
+    // GlassCard reads) — a handful of 26px blurs animating at once was
+    // the real source of the "laggy theme switch" reports, more than
+    // the animation itself.
+    this.blurSigma = 14,
     this.fillColor,
     this.borderColor,
     this.onTap,
@@ -77,8 +85,12 @@ class GlassCard extends StatelessWidget {
               ),
             ],
           ),
-          // A short, curved specular highlight along the top edge —
-          // the detail that sells "liquid glass" over a flat gradient.
+          // Two static details that sell "liquid glass" over a flat
+          // tinted panel — a curved specular highlight along the top
+          // edge, and a soft warm glow pooling along the bottom edge
+          // (Flutter's BoxDecoration has no inset-shadow equivalent, so
+          // this is a positioned gradient standing in for one). Both
+          // are fixed — nothing here loops or rotates.
           child: Stack(
             children: [
               Positioned(
@@ -99,6 +111,26 @@ class GlassCard extends StatelessWidget {
                   ),
                 ),
               ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 36,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          (accent ?? palette.gold).withValues(alpha: 0.14),
+                          (accent ?? palette.gold).withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               child,
             ],
           ),
@@ -106,7 +138,11 @@ class GlassCard extends StatelessWidget {
       ),
     );
 
-    final wrapped = Container(margin: margin, child: card);
+    // Isolates this card's paint layer from its ancestors' — when the
+    // app-wide theme animation touches everything above it each frame,
+    // the blur+gradient work here stays confined to this boundary
+    // instead of forcing sibling glass cards to be reconsidered too.
+    final wrapped = Container(margin: margin, child: RepaintBoundary(child: card));
 
     if (onTap == null) return wrapped;
 
@@ -120,7 +156,7 @@ class GlassCard extends StatelessWidget {
           onTap: onTap,
           splashColor: (accent ?? palette.gold).withValues(alpha: 0.12),
           highlightColor: (accent ?? palette.gold).withValues(alpha: 0.06),
-          child: card,
+          child: RepaintBoundary(child: card),
         ),
       ),
     );

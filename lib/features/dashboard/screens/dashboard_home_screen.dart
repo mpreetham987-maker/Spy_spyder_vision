@@ -10,6 +10,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../providers/camera_provider.dart';
 import '../../../providers/robot_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../shared/widgets/app_logo.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../widgets/device_picker_sheet.dart';
 
@@ -60,6 +61,14 @@ class DashboardHomeScreen extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Same crest used on the splash screen and the
+                  // launcher icon — the app's one logo, not a
+                  // splash-only graphic. Small enough here that the
+                  // glow would just look like a smudge, so it's off.
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2, right: AppConstants.spaceSm),
+                    child: AppLogo(size: 34, glow: false),
+                  ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

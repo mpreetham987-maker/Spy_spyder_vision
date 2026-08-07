@@ -73,8 +73,13 @@ class SpySpiderVisionApp extends StatelessWidget {
             builder: (context, child) {
               return AnimatedTheme(
                 data: Theme.of(context),
-                duration: const Duration(milliseconds: 420),
-                curve: Curves.easeInOutCubic,
+                // Shorter than before (420ms → 260ms): every glass
+                // surface on screen re-runs its BackdropFilter blur on
+                // every animated frame here, so fewer total frames is a
+                // real, measurable win — on top of the blur-sigma cuts
+                // in GlassCard and the controller housings.
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOut,
                 child: child ?? const SizedBox.shrink(),
               );
             },

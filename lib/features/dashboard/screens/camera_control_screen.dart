@@ -483,9 +483,14 @@ class _ControllerPad extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  ClipOval(
+                  RepaintBoundary(
+                    child: ClipOval(
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                      // 12, not 22 — same reasoning as GlassCard: blur
+                      // cost scales with sigma², and these two housings
+                      // repaint every frame while a theme-switch or any
+                      // other palette animation is running.
+                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                       child: Container(
                         width: size,
                         height: size,
@@ -512,6 +517,7 @@ class _ControllerPad extends StatelessWidget {
                           painter: _LiquidGlassSheenPainter(),
                         ),
                       ),
+                    ),
                     ),
                   ),
                   child,
