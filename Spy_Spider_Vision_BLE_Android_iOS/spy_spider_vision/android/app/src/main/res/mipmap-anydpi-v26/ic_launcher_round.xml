@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon (Android 8+): the OS composites these two layers and
+     applies its own mask shape (circle/squircle/rounded square
+     depending on launcher/OEM). The background is the same
+     royal-midnight gradient the rest of the app uses; the foreground
+     is the crest scaled to the ~66% safe zone so it isn't clipped by
+     the mask. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

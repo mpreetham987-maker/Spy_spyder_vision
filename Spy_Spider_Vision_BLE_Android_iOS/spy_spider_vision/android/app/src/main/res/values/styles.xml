@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied once the process has started, covering the gap
+         between LaunchTheme handing off and Flutter's first frame
+         actually painting. Explicitly pinned to the same charcoal as
+         the launch drawable (rather than inheriting Theme.Black's
+         default pure-black background) — this was the second, more
+         subtle source of the "black flash": the window briefly went
+         black again during this handoff even after the launch
+         drawable fix, right before Flutter's animated splash could
+         paint over it. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@color/launch_background</item>
+    </style>
+</resources>

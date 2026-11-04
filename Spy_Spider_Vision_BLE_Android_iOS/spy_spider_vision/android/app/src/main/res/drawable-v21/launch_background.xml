@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native splash background shown before Flutter's first frame draws.
+     Matches the app's "Royal Midnight" charcoal (#0B0A16) instead of
+     plain black, so there's no jarring black flash before the branded
+     Dart splash screen takes over. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launch_background" />
+</layer-list>
